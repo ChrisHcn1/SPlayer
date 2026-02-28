@@ -497,15 +497,10 @@ class PlayerController {
         console.log(`🔍 [prepareAudioSource] 需要转码: ${needsTranscode}, 文件扩展名: ${song.path.split(".").pop()?.toLowerCase()}`);
 
         if (needsTranscode) {
-          console.log(`🔄 [prepareAudioSource] 开始转码: ${song.path}`);
-          const transcodeResult = await audioTranscodeManager.transcodeSong(song);
-          if (transcodeResult) {
-            const encodedPath = transcodeResult.replace(/#/g, "%23").replace(/\?/g, "%3F");
-            audioSource.url = `file://${encodedPath}`;
-            console.log(`✅ [prepareAudioSource] 转码成功: ${audioSource.url}`);
-          } else {
-            console.warn(`⚠️ [prepareAudioSource] 转码失败，使用原文件`);
-          }
+          // FFmpeg 可用时，使用 FFmpeg 实时解码播放，不需要转码
+          console.log(`🎵 [prepareAudioSource] FFmpeg 可用，使用 FFmpeg 实时解码播放，跳过转码: ${song.path}`);
+          // 保持原文件路径，让 FFmpegBinaryPlayer 处理解码
+          // audioSource.url 保持不变
         } else {
           console.log(`ℹ️ [prepareAudioSource] 文件不需要转码，使用原文件`);
         }
@@ -1929,18 +1924,13 @@ class PlayerController {
           console.log(`🔧 [handlePlaybackError] FFmpeg 可用: ${ffmpegAvailable}`);
           
           if (ffmpegAvailable) {
-            console.log(`🔄 [handlePlaybackError] 开始转码并重试播放: ${musicStore.playSong.path}`);
-            const transcodeResult = await audioTranscodeManager.transcodeSong(musicStore.playSong);
-            
-            if (transcodeResult) {
-              console.log(`✅ [handlePlaybackError] 转码成功，重试播放: ${transcodeResult}`);
-              this.retryInfo.count++;
-              await sleep(500);
-              await this.playSong({ autoPlay: true, seek: currentSeek });
-              return;
-            } else {
-              console.warn(`⚠️ [handlePlaybackError] 转码失败，跳过歌曲`);
-            }
+            // FFmpeg 可用时，使用 FFmpeg 实时解码播放，不需要转码
+            console.log(`🎵 [handlePlaybackError] FFmpeg 可用，使用 FFmpeg 实时解码播放，跳过转码: ${musicStore.playSong.path}`);
+            // 直接使用 FFmpeg 解码播放
+            this.retryInfo.count++;
+            await sleep(500);
+            await this.playSong({ autoPlay: true, seek: currentSeek });
+            return;
           } else {
             console.warn(`⚠️ [handlePlaybackError] FFmpeg 不可用，无法转码`);
           }

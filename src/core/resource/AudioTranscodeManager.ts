@@ -84,6 +84,12 @@ class AudioTranscodeManager {
     const available = await this.checkFFmpegAvailable();
     if (!available) return;
 
+    // FFmpeg 可用时，使用 FFmpeg 实时解码，不需要预转码
+    console.log(`[AudioTranscode] FFmpeg 可用，使用实时解码，跳过预转码: ${song.id}`);
+    return;
+
+    // 以下预转码逻辑已禁用
+    /*
     const jobKey = this.getJobKey(song.id);
     const existingJob = this.jobs.get(jobKey);
 
@@ -105,12 +111,13 @@ class AudioTranscodeManager {
     setTimeout(async () => {
       await this.transcodeSong(song);
     }, prefetchDelay);
+    */
   }
 
   public async transcodeSong(song: SongType): Promise<string | null> {
     if (!isElectron || !song.path) return null;
 
-    console.log(`[AudioTranscode] 开始转码歌曲: ${song.id}, 路径: ${song.path}`);
+    console.log(`[AudioTranscode] 处理歌曲: ${song.id}, 路径: ${song.path}`);
 
     const available = await this.checkFFmpegAvailable();
     if (!available) {
@@ -118,6 +125,13 @@ class AudioTranscodeManager {
       return null;
     }
 
+    // 如果 FFmpeg 可用，直接使用 FFmpeg 解码播放，不需要转码
+    // 返回原文件路径，让 FFmpegBinaryPlayer 处理解码
+    console.log(`[AudioTranscode] FFmpeg 可用，使用 FFmpeg 解码播放，跳过转码: ${song.path}`);
+    return song.path;
+
+    // 以下转码逻辑已禁用，使用 FFmpeg 实时解码替代
+    /*
     const jobKey = this.getJobKey(song.id);
     const existingJob = this.jobs.get(jobKey);
 

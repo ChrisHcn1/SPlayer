@@ -68,6 +68,23 @@ class FFmpegAudioDecodeService {
       }
     }
 
+    // 优先使用 vcpkg 安装的 FFmpeg
+    const vcpkgFFmpegPath = process.platform === "win32"
+      ? join(process.env.USERPROFILE || "", "vcpkg", "installed", "x64-windows", "tools", "ffmpeg", "ffmpeg.exe")
+      : join(process.env.HOME || "", "vcpkg", "installed", "x64-linux", "tools", "ffmpeg", "ffmpeg");
+
+    try {
+      await access(vcpkgFFmpegPath);
+      const result = await this.testFFmpegCommand(vcpkgFFmpegPath);
+      if (result) {
+        this.ffmpegPath = vcpkgFFmpegPath;
+        ipcLog.info(`[FFmpegDecode] ✅ FFmpeg found in vcpkg: ${vcpkgFFmpegPath}`);
+        return true;
+      }
+    } catch {
+      ipcLog.info(`[FFmpegDecode] vcpkg FFmpeg not found: ${vcpkgFFmpegPath}`);
+    }
+
     // 检查系统 PATH 中的 ffmpeg
     const systemPaths = process.platform === "win32"
       ? ["ffmpeg.exe", "ffmpeg"]
