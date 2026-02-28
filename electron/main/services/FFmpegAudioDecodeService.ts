@@ -1,0 +1,287 @@
+import { spawn, ChildProcess } from "node:child_process";
+import { access, mkdir } from "node:fs/promises";
+import { join, basename, extname } from "node:path";
+import { ipcLog } from "../logger";
+import { useStore } from "../store";
+
+/**
+ * FFmpeg 音频解码服务
+ * 
+ * 用于实时解码原生不支持的音频格式（如 DTS、APE、DSD 等）
+ * 将音频实时解码为 PCM 数据，供播放器使用
+ */
+
+interface DecodeOptions {
+  /** 音频文件路径 */
+  sourcePath: string;
+  /** 输出格式，默认为 s16le (16-bit PCM) */
+  sampleFormat?: "s16le" | "s32le" | "f32le";
+  /** 采样率，默认为 48000 */
+  sampleRate?: number;
+  /** 声道数，默认为 2 (立体声) */
+  channels?: number;
+}
+
+interface DecodeStream {
+  /** FFmpeg 进程 */
+  process: ChildProcess;
+  /** 音频元数据 */
+  metadata: {
+    duration: number;
+    sampleRate: number;
+    channels: number;
+    bitDepth: number;
+  };
+  /** 读取 PCM 数据的流 */
+  pcmStream: NodeJS.ReadableStream;
+}
+
+class FFmpegAudioDecodeService {
+  private ffmpegPath: string | null = null;
+  private ffmpegChecked = false;
+
+  /**
+   * 检查 FFmpeg 是否可用
+   */
+  private async checkFFmpeg(): Promise<boolean> {
+    if (this.ffmpegChecked) {
+      return this.ffmpegPath !== null;
+    }
+
+    this.ffmpegChecked = true;
+    ipcLog.info("[FFmpegDecode] Checking FFmpeg availability...");
+
+    // 优先检查用户设置的 FFmpeg 路径
+    const store = useStore();
+    const customFFmpegPath = store.get("ffmpegPath") as string | undefined;
+
+    if (customFFmpegPath?.trim()) {
+      try {
+        const result = await this.testFFmpegCommand(customFFmpegPath);
+        if (result) {
+          this.ffmpegPath = customFFmpegPath;
+          ipcLog.info(`[FFmpegDecode] ✅ FFmpeg found at: ${customFFmpegPath}`);
+          return true;
+        }
+      } catch (error) {
+        ipcLog.warn(`[FFmpegDecode] ❌ Custom FFmpeg path failed: ${error}`);
+      }
+    }
+
+    // 检查系统 PATH 中的 ffmpeg
+    const systemPaths = process.platform === "win32"
+      ? ["ffmpeg.exe", "ffmpeg"]
+      : ["ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"];
+
+    for (const cmd of systemPaths) {
+      try {
+        const result = await this.testFFmpegCommand(cmd);
+        if (result) {
+          this.ffmpegPath = cmd;
+          ipcLog.info(`[FFmpegDecode] ✅ FFmpeg found in PATH: ${cmd}`);
+          return true;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    // 检查常见的安装位置
+    const commonPaths = process.platform === "win32"
+      ? [
+          join(process.env.PROGRAMFILES || "C:\\Program Files", "ffmpeg", "bin", "ffmpeg.exe"),
+          join(process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)", "ffmpeg", "bin", "ffmpeg.exe"),
+          join(process.env.LOCALAPPDATA || process.env.USERPROFILE || "", "ffmpeg", "bin", "ffmpeg.exe"),
+        ]
+      : ["/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg"];
+
+    for (const path of commonPaths) {
+      try {
+        await access(path);
+        const result = await this.testFFmpegCommand(path);
+        if (result) {
+          this.ffmpegPath = path;
+          ipcLog.info(`[FFmpegDecode] ✅ FFmpeg found at: ${path}`);
+          return true;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    ipcLog.error("[FFmpegDecode] ❌ FFmpeg not found");
+    return false;
+  }
+
+  /**
+   * 测试 FFmpeg 命令是否可用
+   */
+  private async testFFmpegCommand(ffmpegPath: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const process = spawn(ffmpegPath, ["-version"], { shell: process.platform === "win32" });
+      process.on("close", (code) => {
+        resolve(code === 0);
+      });
+      process.on("error", () => {
+        resolve(false);
+      });
+    });
+  }
+
+  /**
+   * 获取音频文件的元数据
+   */
+  async getMetadata(sourcePath: string): Promise<{
+    duration: number;
+    sampleRate: number;
+    channels: number;
+    bitDepth: number;
+    format: string;
+  } | null> {
+    if (!(await this.checkFFmpeg())) {
+      throw new Error("FFmpeg not found");
+    }
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-i", sourcePath,
+        "-f", "ffmetadata",
+        "-"
+      ];
+
+      const process = spawn(this.ffmpegPath!, args, { shell: process.platform === "win32" });
+      let stderr = "";
+      let stdout = "";
+
+      process.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      process.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+
+      process.on("close", () => {
+        // 从 stderr 中解析元数据
+        const durationMatch = stderr.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
+        const streamMatch = stderr.match(/Stream #0:\d+: Audio: ([^,]+), (\d+) Hz, ([^,]+), ([^,\s]+)/);
+
+        if (durationMatch && streamMatch) {
+          const hours = parseInt(durationMatch[1]);
+          const minutes = parseInt(durationMatch[2]);
+          const seconds = parseFloat(durationMatch[3]);
+          const duration = hours * 3600 + minutes * 60 + seconds;
+
+          resolve({
+            duration,
+            sampleRate: parseInt(streamMatch[2]),
+            channels: streamMatch[3].includes("stereo") ? 2 : streamMatch[3].includes("mono") ? 1 : 2,
+            bitDepth: 16, // 默认 16-bit
+            format: streamMatch[1].trim(),
+          });
+        } else {
+          resolve(null);
+        }
+      });
+
+      process.on("error", (error) => {
+        reject(error);
+      });
+    });
+  }
+
+  /**
+   * 开始解码音频文件
+   * 将音频实时解码为 PCM 数据流
+   */
+  async startDecode(options: DecodeOptions): Promise<DecodeStream> {
+    if (!(await this.checkFFmpeg())) {
+      throw new Error("FFmpeg not found");
+    }
+
+    const {
+      sourcePath,
+      sampleFormat = "s16le",
+      sampleRate = 48000,
+      channels = 2,
+    } = options;
+
+    // 首先获取元数据
+    const metadata = await this.getMetadata(sourcePath);
+    if (!metadata) {
+      throw new Error("Failed to get audio metadata");
+    }
+
+    // 构建 FFmpeg 命令
+    const args = [
+      "-i", sourcePath,
+      "-f", sampleFormat,
+      "-ar", sampleRate.toString(),
+      "-ac", channels.toString(),
+      "-vn", // 禁用视频
+      "-", // 输出到 stdout
+    ];
+
+    ipcLog.info(`[FFmpegDecode] Starting decode: ${sourcePath}`);
+    ipcLog.info(`[FFmpegDecode] Command: ${this.ffmpegPath} ${args.join(" ")}`);
+
+    const process = spawn(this.ffmpegPath!, args, {
+      shell: process.platform === "win32",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stderr = "";
+    process.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    process.on("close", (code) => {
+      if (code !== 0) {
+        ipcLog.error(`[FFmpegDecode] FFmpeg exited with code ${code}: ${stderr}`);
+      } else {
+        ipcLog.info(`[FFmpegDecode] FFmpeg completed successfully`);
+      }
+    });
+
+    process.on("error", (error) => {
+      ipcLog.error(`[FFmpegDecode] FFmpeg process error:`, error);
+    });
+
+    return {
+      process,
+      metadata,
+      pcmStream: process.stdout!,
+    };
+  }
+
+  /**
+   * 停止解码
+   */
+  stopDecode(stream: DecodeStream): void {
+    if (stream.process && !stream.process.killed) {
+      stream.process.kill("SIGTERM");
+      ipcLog.info("[FFmpegDecode] Decode stopped");
+    }
+  }
+
+  /**
+   * 检查音频格式是否需要 FFmpeg 解码
+   */
+  static needsFFmpegDecode(filePath: string): boolean {
+    const ext = extname(filePath).toLowerCase();
+    const formatsNeedingFFmpeg = [
+      ".dts",     // DTS 音频
+      ".ape",     // Monkey's Audio
+      ".dsf",     // DSD 音频
+      ".dff",     // DSD 音频
+      ".wv",      // WavPack
+      ".tak",     // TAK 音频
+      ".mlp",     // Meridian Lossless Packing
+      ".thd",     // TrueHD
+    ];
+    return formatsNeedingFFmpeg.includes(ext);
+  }
+}
+
+export const ffmpegAudioDecodeService = new FFmpegAudioDecodeService();
+export default FFmpegAudioDecodeService;

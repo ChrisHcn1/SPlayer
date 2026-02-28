@@ -296,8 +296,8 @@ fn process_single_track(
             let properties = tagged_file.properties();
 
             let title = tag
-                .and_then(|t| t.title().as_deref())
-                .unwrap_or(&file_name)
+                .and_then(|t| t.title())
+                .unwrap_or_else(|| file_name.clone().into())
                 .to_string();
             let duration = properties.duration().as_millis() as f64;
 
@@ -307,12 +307,12 @@ fn process_single_track(
             }
 
             let artist = tag
-                .and_then(|t| t.artist().as_deref())
-                .unwrap_or("未知艺术家")
+                .and_then(|t| t.artist())
+                .unwrap_or_else(|| "未知艺术家".into())
                 .to_string();
             let album = tag
-                .and_then(|t| t.album().as_deref())
-                .unwrap_or("未知专辑")
+                .and_then(|t| t.album())
+                .unwrap_or_else(|| "未知专辑".into())
                 .to_string();
             let track_number = tag.and_then(|t| t.track().map(|t| t as i32));
 

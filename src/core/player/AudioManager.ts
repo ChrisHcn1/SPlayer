@@ -4,6 +4,7 @@ import { TypedEventTarget } from "@/utils/TypedEventTarget";
 import { AudioElementPlayer } from "../audio-player/AudioElementPlayer";
 import { AUDIO_EVENTS, type AudioEventMap } from "../audio-player/BaseAudioPlayer";
 import { FFmpegAudioPlayer } from "../audio-player/ffmpeg-engine/FFmpegAudioPlayer";
+import { FFmpegBinaryPlayer } from "../audio-player/FFmpegBinaryPlayer";
 import type {
   EngineCapabilities,
   FadeCurve,
@@ -35,26 +36,40 @@ class AudioManager extends TypedEventTarget<AudioEventMap> implements IPlaybackE
   /** 主音量 (用于 Crossfade 初始化) */
   private _masterVolume: number = 1.0;
 
-  /** 当前引擎类型：element | ffmpeg | mpv */
-  public readonly engineType: "element" | "ffmpeg" | "mpv";
+  /** 当前引擎类型：element | ffmpeg | mpv | ffmpeg-binary */
+  public readonly engineType: "element" | "ffmpeg" | "mpv" | "ffmpeg-binary";
 
   /** 引擎能力描述 */
   public readonly capabilities: EngineCapabilities;
 
+  /** 音频引擎配置 */
+  private playbackEngine: "web-audio" | "mpv";
+  private audioEngine: "element" | "ffmpeg";
+
   constructor(playbackEngine: "web-audio" | "mpv", audioEngine: "element" | "ffmpeg") {
     super();
 
-    // 根据设置选择引擎
-    if (isElectron && playbackEngine === "mpv") {
+    this.playbackEngine = playbackEngine;
+    this.audioEngine = audioEngine;
+
+    // 初始化默认引擎
+    this.initializeDefaultEngine();
+  }
+
+  /**
+   * 初始化默认引擎
+   */
+  private initializeDefaultEngine() {
+    if (isElectron && this.playbackEngine === "mpv") {
       const mpvPlayer = useMpvPlayer();
       mpvPlayer.init();
       this.engine = mpvPlayer;
       this.engineType = "mpv";
-    } else if (audioEngine === "ffmpeg" && checkIsolationSupport()) {
+    } else if (this.audioEngine === "ffmpeg" && checkIsolationSupport()) {
       this.engine = new FFmpegAudioPlayer();
       this.engineType = "ffmpeg";
     } else {
-      if (audioEngine === "ffmpeg" && !checkIsolationSupport()) {
+      if (this.audioEngine === "ffmpeg" && !checkIsolationSupport()) {
         console.warn("[AudioManager] 环境未隔离，从 FFmpeg 回退到 Web Audio");
       }
 
@@ -64,6 +79,40 @@ class AudioManager extends TypedEventTarget<AudioEventMap> implements IPlaybackE
 
     this.capabilities = this.engine.capabilities;
     this.bindEngineEvents();
+  }
+
+  /**
+   * 检查并切换到 FFmpeg 二进制解码引擎
+   */
+  public async checkAndSwitchToFFmpegBinary(url: string): Promise<boolean> {
+    try {
+      const needsFFmpegDecode = await window.electron.ipcRenderer.invoke("ffmpeg-decode:needs-decode", url);
+      
+      if (needsFFmpegDecode && this.engineType !== "ffmpeg-binary") {
+        console.log(`[AudioManager] 切换到 FFmpeg 二进制解码: ${url}`);
+        
+        // 清理当前引擎
+        this.clearPendingSwitch();
+        if (this.cleanupListeners) {
+          this.cleanupListeners();
+          this.cleanupListeners = null;
+        }
+        this.engine.destroy();
+
+        // 创建新引擎
+        this.engine = new FFmpegBinaryPlayer();
+        this.engineType = "ffmpeg-binary";
+        this.capabilities = this.engine.capabilities;
+        this.bindEngineEvents();
+
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error("[AudioManager] 检查 FFmpeg 解码失败:", error);
+      return false;
+    }
   }
 
   /**
@@ -126,6 +175,11 @@ class AudioManager extends TypedEventTarget<AudioEventMap> implements IPlaybackE
    * 加载并播放音频
    */
   public async play(url?: string, options?: PlayOptions): Promise<void> {
+    // 检查是否需要切换到 FFmpeg 二进制解码引擎
+    if (url && isElectron) {
+      await this.checkAndSwitchToFFmpegBinary(url);
+    }
+    
     await this.engine.play(url, options);
   }
 

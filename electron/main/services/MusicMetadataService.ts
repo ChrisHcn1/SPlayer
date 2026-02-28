@@ -598,7 +598,9 @@ async getMetadata(path: string): Promise<{
 
       // 执行 FFmpeg 命令
       await new Promise<void>((resolve, reject) => {
-        const ffmpegProcess = spawn(ffmpegPath, ffmpegArgs);
+        // 在 Windows 上使用 shell: true 来确保命令正确执行
+        const options = process.platform === "win32" ? { shell: true } : {};
+        const ffmpegProcess = spawn(ffmpegPath, ffmpegArgs, options);
         let stderr = "";
         let stdout = "";
 
