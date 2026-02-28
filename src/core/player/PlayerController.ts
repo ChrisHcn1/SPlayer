@@ -497,10 +497,26 @@ class PlayerController {
         console.log(`🔍 [prepareAudioSource] 需要转码: ${needsTranscode}, 文件扩展名: ${song.path.split(".").pop()?.toLowerCase()}`);
 
         if (needsTranscode) {
-          // FFmpeg 可用时，使用 FFmpeg 实时解码播放，不需要转码
-          console.log(`🎵 [prepareAudioSource] FFmpeg 可用，使用 FFmpeg 实时解码播放，跳过转码: ${song.path}`);
-          // 保持原文件路径，让 FFmpegBinaryPlayer 处理解码
-          // audioSource.url 保持不变
+          // 检查是否应该使用实时解码（FFmpeg 可用且设置中启用了转码）
+          const shouldUseRealtimeDecode = audioTranscodeManager.isFFmpegAvailable();
+          if (shouldUseRealtimeDecode) {
+            console.log(`🎵 [prepareAudioSource] FFmpeg 可用，使用 FFmpeg 实时解码播放: ${song.path}`);
+            // 保持原文件路径，让 FFmpegBinaryPlayer 处理解码
+            // audioSource.url 保持不变
+          } else {
+            // FFmpeg 不可用，执行转码
+            console.log(`🔄 [prepareAudioSource] 开始转码: ${song.path}`);
+            const transcodeResult = await audioTranscodeManager.transcodeSong(song);
+            if (transcodeResult && transcodeResult !== song.path) {
+              const encodedPath = transcodeResult.replace(/#/g, "%23").replace(/\?/g, "%3F");
+              audioSource.url = `file://${encodedPath}`;
+              console.log(`✅ [prepareAudioSource] 转码成功: ${audioSource.url}`);
+            } else if (transcodeResult === song.path) {
+              console.log(`🎵 [prepareAudioSource] 使用 FFmpeg 实时解码: ${song.path}`);
+            } else {
+              console.warn(`⚠️ [prepareAudioSource] 转码失败，使用原文件`);
+            }
+          }
         } else {
           console.log(`ℹ️ [prepareAudioSource] 文件不需要转码，使用原文件`);
         }
@@ -1924,13 +1940,36 @@ class PlayerController {
           console.log(`🔧 [handlePlaybackError] FFmpeg 可用: ${ffmpegAvailable}`);
           
           if (ffmpegAvailable) {
-            // FFmpeg 可用时，使用 FFmpeg 实时解码播放，不需要转码
-            console.log(`🎵 [handlePlaybackError] FFmpeg 可用，使用 FFmpeg 实时解码播放，跳过转码: ${musicStore.playSong.path}`);
-            // 直接使用 FFmpeg 解码播放
-            this.retryInfo.count++;
-            await sleep(500);
-            await this.playSong({ autoPlay: true, seek: currentSeek });
-            return;
+            // 检查是否应该使用实时解码
+            const shouldUseRealtimeDecode = audioTranscodeManager.isFFmpegAvailable();
+            if (shouldUseRealtimeDecode) {
+              console.log(`🎵 [handlePlaybackError] FFmpeg 可用，使用 FFmpeg 实时解码播放: ${musicStore.playSong.path}`);
+              // 直接使用 FFmpeg 解码播放
+              this.retryInfo.count++;
+              await sleep(500);
+              await this.playSong({ autoPlay: true, seek: currentSeek });
+              return;
+            } else {
+              // FFmpeg 不可用，尝试转码
+              console.log(`🔄 [handlePlaybackError] 开始转码并重试播放: ${musicStore.playSong.path}`);
+              const transcodeResult = await audioTranscodeManager.transcodeSong(musicStore.playSong);
+              
+              if (transcodeResult && transcodeResult !== musicStore.playSong.path) {
+                console.log(`✅ [handlePlaybackError] 转码成功，重试播放: ${transcodeResult}`);
+                this.retryInfo.count++;
+                await sleep(500);
+                await this.playSong({ autoPlay: true, seek: currentSeek });
+                return;
+              } else if (transcodeResult === musicStore.playSong.path) {
+                console.log(`🎵 [handlePlaybackError] 使用 FFmpeg 实时解码: ${musicStore.playSong.path}`);
+                this.retryInfo.count++;
+                await sleep(500);
+                await this.playSong({ autoPlay: true, seek: currentSeek });
+                return;
+              } else {
+                console.warn(`⚠️ [handlePlaybackError] 转码失败，跳过歌曲`);
+              }
+            }
           } else {
             console.warn(`⚠️ [handlePlaybackError] FFmpeg 不可用，无法转码`);
           }

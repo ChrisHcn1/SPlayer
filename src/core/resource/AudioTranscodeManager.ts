@@ -1,5 +1,6 @@
 import { isElectron } from "@/utils/env";
 import type { SongType } from "@/types/main";
+import { useSettingStore } from "@/stores";
 
 type TranscodeStatus = "idle" | "transcoding" | "completed" | "failed";
 
@@ -74,6 +75,18 @@ class AudioTranscodeManager {
     );
   }
 
+  /**
+   * 检查是否应该使用 FFmpeg 实时解码（而非转码）
+   * 当 FFmpeg 可用且设置中启用了实时解码时使用
+   */
+  private shouldUseRealtimeDecode(): boolean {
+    const settingStore = useSettingStore();
+    // 当 FFmpeg 可用且设置中启用了音频转码时，使用实时解码
+    // 注意：这里复用了 enableAudioTranscode 设置
+    // 如果用户启用了转码功能，但我们检测到 FFmpeg 可用，就使用实时解码替代转码
+    return settingStore.enableAudioTranscode && this.ffmpegAvailable;
+  }
+
   public async prefetchNextSong(
     song: SongType,
     playDurationMs: number,
@@ -84,12 +97,13 @@ class AudioTranscodeManager {
     const available = await this.checkFFmpegAvailable();
     if (!available) return;
 
-    // FFmpeg 可用时，使用 FFmpeg 实时解码，不需要预转码
-    console.log(`[AudioTranscode] FFmpeg 可用，使用实时解码，跳过预转码: ${song.id}`);
-    return;
+    // 检查是否应该使用实时解码
+    if (this.shouldUseRealtimeDecode()) {
+      console.log(`[AudioTranscode] FFmpeg 可用，使用实时解码，跳过预转码: ${song.id}`);
+      return;
+    }
 
-    // 以下预转码逻辑已禁用
-    /*
+    // 执行预转码
     const jobKey = this.getJobKey(song.id);
     const existingJob = this.jobs.get(jobKey);
 
@@ -111,7 +125,6 @@ class AudioTranscodeManager {
     setTimeout(async () => {
       await this.transcodeSong(song);
     }, prefetchDelay);
-    */
   }
 
   public async transcodeSong(song: SongType): Promise<string | null> {
@@ -125,13 +138,13 @@ class AudioTranscodeManager {
       return null;
     }
 
-    // 如果 FFmpeg 可用，直接使用 FFmpeg 解码播放，不需要转码
-    // 返回原文件路径，让 FFmpegBinaryPlayer 处理解码
-    console.log(`[AudioTranscode] FFmpeg 可用，使用 FFmpeg 解码播放，跳过转码: ${song.path}`);
-    return song.path;
+    // 检查是否应该使用实时解码
+    if (this.shouldUseRealtimeDecode()) {
+      console.log(`[AudioTranscode] FFmpeg 可用，使用实时解码，跳过转码: ${song.path}`);
+      return song.path;
+    }
 
-    // 以下转码逻辑已禁用，使用 FFmpeg 实时解码替代
-    /*
+    // 执行转码
     const jobKey = this.getJobKey(song.id);
     const existingJob = this.jobs.get(jobKey);
 
