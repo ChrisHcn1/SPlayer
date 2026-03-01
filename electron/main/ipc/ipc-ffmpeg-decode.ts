@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import { ipcLog } from "../logger";
-import { ffmpegAudioDecodeService } from "../services/FFmpegAudioDecodeService";
+import { ffmpegAudioDecodeService, default as FFmpegAudioDecodeService } from "../services/FFmpegAudioDecodeService";
 import { Readable } from "node:stream";
 
 /**
@@ -22,7 +22,7 @@ export function initFFmpegDecodeIPC() {
    * 检查音频格式是否需要 FFmpeg 解码
    */
   ipcMain.handle("ffmpeg-decode:needs-decode", async (_, filePath: string) => {
-    return ffmpegAudioDecodeService.needsFFmpegDecode(filePath);
+    return FFmpegAudioDecodeService.needsFFmpegDecode(filePath);
   });
 
   /**
