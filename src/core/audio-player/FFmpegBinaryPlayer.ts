@@ -72,23 +72,32 @@ export class FFmpegBinaryPlayer extends BaseAudioPlayer {
       this.playerState = "loading";
       this.dispatch("loadstart");
 
-      const needsDecode = await window.electron.ipcRenderer.invoke("ffmpeg-decode:needs-decode", url);
+      // 移除 file:// 前缀，获取本地文件路径
+      const filePath = url.startsWith("file://") 
+        ? decodeURIComponent(url.slice(7).replace(/\\/g, "/"))
+        : url;
+
+      console.log(`[FFmpegBinaryPlayer] 加载文件: ${filePath}`);
+
+      const needsDecode = await window.electron.ipcRenderer.invoke("ffmpeg-decode:needs-decode", filePath);
       
       if (!needsDecode) {
         throw new Error("File format does not need FFmpeg decode");
       }
 
-      const metadataResult = await window.electron.ipcRenderer.invoke("ffmpeg-decode:get-metadata", url);
-      if (!metadataResult.success) {
+      const metadataResult = await window.electron.ipcRenderer.invoke("ffmpeg-decode:get-metadata", filePath);
+      if (!metadataResult.success || !metadataResult.metadata) {
         throw new Error(metadataResult.error || "Failed to get metadata");
       }
 
       this.metadata = metadataResult.metadata;
-      this.filePath = url;
+      this.filePath = filePath;
       this.sampleRate = this.metadata.sampleRate;
       this.channels = this.metadata.channels;
 
-      const decodeResult = await window.electron.ipcRenderer.invoke("ffmpeg-decode:start", url);
+      console.log(`[FFmpegBinaryPlayer] 元数据: duration=${this.metadata.duration}, sampleRate=${this.sampleRate}, channels=${this.channels}`);
+
+      const decodeResult = await window.electron.ipcRenderer.invoke("ffmpeg-decode:start", filePath);
       if (!decodeResult.success) {
         throw new Error(decodeResult.error || "Failed to start decode");
       }
@@ -106,6 +115,7 @@ export class FFmpegBinaryPlayer extends BaseAudioPlayer {
         await this.play();
       }
     } catch (error) {
+      console.error("[FFmpegBinaryPlayer] 加载失败:", error);
       this.playerState = "error";
       this.dispatch("error", {
         originalEvent: toError(error),
