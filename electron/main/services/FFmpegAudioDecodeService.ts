@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from "node:child_process";
-import { access, mkdir } from "node:fs/promises";
-import { join, basename, extname } from "node:path";
+import { access } from "node:fs/promises";
+import { join, extname } from "node:path";
 import { ipcLog } from "../logger";
 import { useStore } from "../store";
 
@@ -135,11 +135,11 @@ class FFmpegAudioDecodeService {
    */
   private async testFFmpegCommand(ffmpegPath: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const process = spawn(ffmpegPath, ["-version"], { shell: process.platform === "win32" });
-      process.on("close", (code) => {
+      const ffmpegProcess = spawn(ffmpegPath, ["-version"], { shell: process.platform === "win32" });
+      ffmpegProcess.on("close", (code) => {
         resolve(code === 0);
       });
-      process.on("error", () => {
+      ffmpegProcess.on("error", () => {
         resolve(false);
       });
     });
@@ -166,19 +166,19 @@ class FFmpegAudioDecodeService {
         "-"
       ];
 
-      const process = spawn(this.ffmpegPath!, args, { shell: process.platform === "win32" });
+      const ffmpegProcess = spawn(this.ffmpegPath!, args, { shell: process.platform === "win32" });
       let stderr = "";
       let stdout = "";
 
-      process.stderr.on("data", (data) => {
+      ffmpegProcess.stderr.on("data", (data) => {
         stderr += data.toString();
       });
 
-      process.stdout.on("data", (data) => {
+      ffmpegProcess.stdout.on("data", (data) => {
         stdout += data.toString();
       });
 
-      process.on("close", () => {
+      ffmpegProcess.on("close", () => {
         // 从 stderr 中解析元数据
         const durationMatch = stderr.match(/Duration: (\d+):(\d+):(\d+\.\d+)/);
         const streamMatch = stderr.match(/Stream #0:\d+: Audio: ([^,]+), (\d+) Hz, ([^,]+), ([^,\s]+)/);
@@ -201,7 +201,7 @@ class FFmpegAudioDecodeService {
         }
       });
 
-      process.on("error", (error) => {
+      ffmpegProcess.on("error", (error) => {
         reject(error);
       });
     });
@@ -242,17 +242,17 @@ class FFmpegAudioDecodeService {
     ipcLog.info(`[FFmpegDecode] Starting decode: ${sourcePath}`);
     ipcLog.info(`[FFmpegDecode] Command: ${this.ffmpegPath} ${args.join(" ")}`);
 
-    const process = spawn(this.ffmpegPath!, args, {
+    const ffmpegProcess = spawn(this.ffmpegPath!, args, {
       shell: process.platform === "win32",
       stdio: ["ignore", "pipe", "pipe"],
     });
 
     let stderr = "";
-    process.stderr.on("data", (data) => {
+    ffmpegProcess.stderr.on("data", (data) => {
       stderr += data.toString();
     });
 
-    process.on("close", (code) => {
+    ffmpegProcess.on("close", (code) => {
       if (code !== 0) {
         ipcLog.error(`[FFmpegDecode] FFmpeg exited with code ${code}: ${stderr}`);
       } else {
@@ -260,14 +260,14 @@ class FFmpegAudioDecodeService {
       }
     });
 
-    process.on("error", (error) => {
+    ffmpegProcess.on("error", (error) => {
       ipcLog.error(`[FFmpegDecode] FFmpeg process error:`, error);
     });
 
     return {
-      process,
+      process: ffmpegProcess,
       metadata,
-      pcmStream: process.stdout!,
+      pcmStream: ffmpegProcess.stdout!,
     };
   }
 
