@@ -48,14 +48,16 @@ class AudioTranscodeService {
     // 优先检查用户设置的 FFmpeg 路径
     const store = useStore();
     const customFFmpegPath = store.get("ffmpegPath") as string | undefined;
-    
+
     if (customFFmpegPath && customFFmpegPath.trim()) {
       ipcLog.info(`[AudioTranscode] Checking user-specified FFmpeg path: ${customFFmpegPath}`);
       try {
         const result = await this.testFFmpegCommand(customFFmpegPath);
         if (result) {
           this.ffmpegPath = customFFmpegPath;
-          ipcLog.info(`[AudioTranscode] ✅ FFmpeg found at user-specified path: ${customFFmpegPath}`);
+          ipcLog.info(
+            `[AudioTranscode] ✅ FFmpeg found at user-specified path: ${customFFmpegPath}`,
+          );
           return true;
         }
       } catch (error) {
@@ -64,9 +66,10 @@ class AudioTranscodeService {
     }
 
     // 优先使用系统环境变量 PATH 中的 ffmpeg
-    const systemPaths = process.platform === "win32"
-      ? ["ffmpeg.exe", "ffmpeg"]
-      : ["ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"];
+    const systemPaths =
+      process.platform === "win32"
+        ? ["ffmpeg.exe", "ffmpeg"]
+        : ["ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"];
 
     // 检查系统 PATH 中的 ffmpeg
     for (const cmd of systemPaths) {
@@ -78,20 +81,31 @@ class AudioTranscodeService {
           ipcLog.info(`[AudioTranscode] ✅ FFmpeg found in system PATH: ${cmd}`);
           return true;
         }
-      } catch (error) {
+      } catch {
         ipcLog.info(`[AudioTranscode] ❌ FFmpeg not found in PATH: ${cmd}`);
         continue;
       }
     }
 
     // 检查常见的安装位置
-    const commonPaths = process.platform === "win32"
-      ? [
-          join(process.env.PROGRAMFILES || "C:\\Program Files", "ffmpeg", "bin", "ffmpeg.exe"),
-          join(process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)", "ffmpeg", "bin", "ffmpeg.exe"),
-          join(process.env.LOCALAPPDATA || process.env.USERPROFILE || "", "ffmpeg", "bin", "ffmpeg.exe"),
-        ]
-      : ["/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg"];
+    const commonPaths =
+      process.platform === "win32"
+        ? [
+            join(process.env.PROGRAMFILES || "C:\\Program Files", "ffmpeg", "bin", "ffmpeg.exe"),
+            join(
+              process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)",
+              "ffmpeg",
+              "bin",
+              "ffmpeg.exe",
+            ),
+            join(
+              process.env.LOCALAPPDATA || process.env.USERPROFILE || "",
+              "ffmpeg",
+              "bin",
+              "ffmpeg.exe",
+            ),
+          ]
+        : ["/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg"];
 
     ipcLog.info(`[AudioTranscode] Checking ${commonPaths.length} common installation paths`);
 
@@ -105,21 +119,54 @@ class AudioTranscodeService {
           ipcLog.info(`[AudioTranscode] ✅ FFmpeg found at: ${path}`);
           return true;
         }
-      } catch (error) {
+      } catch {
         ipcLog.info(`[AudioTranscode] ❌ FFmpeg not found at: ${path}`);
         continue;
       }
     }
 
-    ipcLog.warn("[AudioTranscode] ⚠️ FFmpeg not found in user-specified path, system PATH, or common installation paths");
-    ipcLog.warn("[AudioTranscode] 💡 Please configure FFmpeg path in settings or add it to your system PATH");
+    // 检查项目内置的FFmpeg
+    const builtinPaths = [
+      // 开发环境路径
+      join(process.cwd(), "ffmpeg", "bin", "ffmpeg.exe"),
+      join(process.cwd(), "ffmpeg", "ffmpeg.exe"),
+      join(__dirname, "..", "..", "ffmpeg", "bin", "ffmpeg.exe"),
+      join(__dirname, "..", "..", "ffmpeg", "ffmpeg.exe"),
+      // 打包环境路径
+      join(process.resourcesPath, "ffmpeg", "bin", "ffmpeg.exe"),
+      join(process.resourcesPath, "ffmpeg", "ffmpeg.exe")
+    ];
+
+    ipcLog.info(`[AudioTranscode] Checking ${builtinPaths.length} built-in FFmpeg paths`);
+
+    for (const path of builtinPaths) {
+      ipcLog.info(`[AudioTranscode] Checking built-in path: ${path}`);
+      try {
+        await access(path);
+        const result = await this.testFFmpegCommand(path);
+        if (result) {
+          this.ffmpegPath = path;
+          ipcLog.info(`[AudioTranscode] ✅ Built-in FFmpeg found at: ${path}`);
+          return true;
+        }
+      } catch {
+        ipcLog.info(`[AudioTranscode] ❌ Built-in FFmpeg not found at: ${path}`);
+        continue;
+      }
+    }
+
+    ipcLog.warn(
+      "[AudioTranscode] ⚠️ FFmpeg not found in user-specified path, system PATH, common installation paths, or built-in paths",
+    );
+    ipcLog.warn(
+      "[AudioTranscode] 💡 Please configure FFmpeg path in settings or add it to your system PATH",
+    );
     ipcLog.warn("[AudioTranscode] 💡 Download from: https://ffmpeg.org/download.html");
     return false;
   }
 
   private async testFFmpegCommand(command: string): Promise<boolean> {
     return new Promise((resolve) => {
-      const { spawn } = require("node:child_process");
       const child = spawn(command, ["-version"], {
         stdio: ["ignore", "pipe", "ignore"],
         timeout: 5000,
@@ -173,7 +220,7 @@ class AudioTranscodeService {
     targetFormat: string = "flac",
     onProgress?: (progress: number) => void,
   ): Promise<{ success: boolean; targetPath?: string; error?: string }> {
-    if (!await this.checkFFmpeg()) {
+    if (!(await this.checkFFmpeg())) {
       return { success: false, error: "FFmpeg not available" };
     }
 
@@ -181,7 +228,7 @@ class AudioTranscodeService {
 
     const targetPath = this.getTargetPath(sourcePath, targetFormat);
 
-    if (!await this.needsTranscode(sourcePath, targetFormat)) {
+    if (!(await this.needsTranscode(sourcePath, targetFormat))) {
       ipcLog.info(`[AudioTranscode] Using cached transcoded file: ${targetPath}`);
       return { success: true, targetPath };
     }
@@ -206,8 +253,10 @@ class AudioTranscodeService {
       this.jobs.set(jobId, job);
 
       const args = [
-        "-i", sourcePath,
-        "-c:a", targetFormat === "flac" ? "flac" : "pcm_s16le",
+        "-i",
+        sourcePath,
+        "-c:a",
+        targetFormat === "flac" ? "flac" : "pcm_s16le",
         "-y",
         targetPath,
       ];
@@ -227,19 +276,17 @@ class AudioTranscodeService {
         const timeMatch = stderrData.match(/time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
 
         if (durationMatch && timeMatch) {
-          const duration = (
+          const duration =
             parseInt(durationMatch[1]) * 3600 +
             parseInt(durationMatch[2]) * 60 +
             parseInt(durationMatch[3]) +
-            parseInt(durationMatch[4]) / 100
-          );
+            parseInt(durationMatch[4]) / 100;
 
-          const currentTime = (
+          const currentTime =
             parseInt(timeMatch[1]) * 3600 +
             parseInt(timeMatch[2]) * 60 +
             parseInt(timeMatch[3]) +
-            parseInt(timeMatch[4]) / 100
-          );
+            parseInt(timeMatch[4]) / 100;
 
           if (duration > 0) {
             const progress = Math.min(100, (currentTime / duration) * 100);

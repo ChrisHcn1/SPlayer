@@ -40,6 +40,24 @@ const config: Configuration = {
       to: "native",
       filter: ["*.node"],
     },
+    // ffmpeg-decoder 模块已移除，使用外部 ffplay 代替
+    // {
+    //   from: "native/ffmpeg-decoder",
+    //   to: "native",
+    //   filter: ["*.node"],
+    // },
+    {
+      // FFmpeg 动态库
+      from: "resources/ffmpeg",
+      to: "ffmpeg",
+      filter: ["*.dll"],
+    },
+    {
+      // FFmpeg 可执行文件
+      from: "ffmpeg",
+      to: "ffmpeg",
+      filter: ["*.exe", "*.dll"],
+    },
   ],
   win: {
     // 可执行文件名
