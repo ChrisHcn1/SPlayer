@@ -9,14 +9,20 @@
 检查音频文件是否需要使用 FFmpeg 进行解码。
 
 **请求参数：**
+
 - `filePath` (string) - 音频文件路径
 
 **返回值：**
+
 - `boolean` - `true` 表示需要 FFmpeg 解码，`false` 表示不需要
 
 **使用示例：**
+
 ```typescript
-const result = await window.electron.ipcRenderer.invoke("ffmpeg-decode:needs-decode", "/path/to/audio.dts");
+const result = await window.electron.ipcRenderer.invoke(
+  "ffmpeg-decode:needs-decode",
+  "/path/to/audio.dts",
+);
 if (result) {
   console.log("需要使用 FFmpeg 解码");
 } else {
@@ -25,6 +31,7 @@ if (result) {
 ```
 
 **支持的格式：**
+
 - `.dts` - DTS 音频
 - `.ape` - Monkey's Audio
 - `.dsf` - DSD 音频
@@ -41,9 +48,11 @@ if (result) {
 获取音频文件的元数据信息。
 
 **请求参数：**
+
 - `filePath` (string) - 音频文件路径
 
 **返回值：**
+
 ```typescript
 {
   success: boolean,  // 是否成功获取
@@ -59,8 +68,12 @@ if (result) {
 ```
 
 **使用示例：**
+
 ```typescript
-const result = await window.electron.ipcRenderer.invoke("ffmpeg-decode:get-metadata", "/path/to/audio.dts");
+const result = await window.electron.ipcRenderer.invoke(
+  "ffmpeg-decode:get-metadata",
+  "/path/to/audio.dts",
+);
 if (result.success && result.metadata) {
   console.log(`时长: ${result.metadata.duration} 秒`);
   console.log(`采样率: ${result.metadata.sampleRate} Hz`);
@@ -75,9 +88,11 @@ if (result.success && result.metadata) {
 开始音频解码，创建一个解码会话。
 
 **请求参数：**
+
 - `filePath` (string) - 音频文件路径
 
 **返回值：**
+
 ```typescript
 {
   success: boolean,      // 是否成功启动解码
@@ -93,8 +108,12 @@ if (result.success && result.metadata) {
 ```
 
 **使用示例：**
+
 ```typescript
-const result = await window.electron.ipcRenderer.invoke("ffmpeg-decode:start", "/path/to/audio.dts");
+const result = await window.electron.ipcRenderer.invoke(
+  "ffmpeg-decode:start",
+  "/path/to/audio.dts",
+);
 if (result.success) {
   const decodeId = result.decodeId;
   console.log(`解码已启动，会话 ID: ${decodeId}`);
@@ -103,6 +122,7 @@ if (result.success) {
 ```
 
 **解码参数：**
+
 - 采样格式：`s16le` (16-bit PCM, little-endian)
 - 采样率：`48000` Hz
 - 声道数：`2` (立体声)
@@ -114,10 +134,12 @@ if (result.success) {
 读取解码后的 PCM 数据。
 
 **请求参数：**
+
 - `decodeId` (string) - 解码会话 ID（从 `ffmpeg-decode:start` 获取）
 - `chunkSize` (number, 可选) - 每次读取的字节数，默认 `65536` (64KB)
 
 **返回值：**
+
 ```typescript
 {
   success: boolean,  // 是否成功读取
@@ -128,18 +150,15 @@ if (result.success) {
 ```
 
 **使用示例：**
+
 ```typescript
 // 读取 PCM 数据
-const result = await window.electron.ipcRenderer.invoke(
-  "ffmpeg-decode:read",
-  decodeId,
-  65536
-);
+const result = await window.electron.ipcRenderer.invoke("ffmpeg-decode:read", decodeId, 65536);
 
 if (result.success && result.data) {
   const pcmData = Buffer.from(result.data, "base64");
   console.log(`读取到 ${pcmData.length} 字节 PCM 数据`);
-  
+
   if (result.done) {
     console.log("解码已完成");
   }
@@ -147,6 +166,7 @@ if (result.success && result.data) {
 ```
 
 **数据格式：**
+
 - PCM 格式：16-bit signed integer, little-endian
 - 声道顺序：交错存储（LRLRLRL...）
 - 数据编码：Base64 字符串
@@ -158,9 +178,11 @@ if (result.success && result.data) {
 停止正在进行的解码会话。
 
 **请求参数：**
+
 - `decodeId` (string) - 解码会话 ID
 
 **返回值：**
+
 ```typescript
 {
   success: boolean,  // 是否成功停止
@@ -169,6 +191,7 @@ if (result.success && result.data) {
 ```
 
 **使用示例：**
+
 ```typescript
 const result = await window.electron.ipcRenderer.invoke("ffmpeg-decode:stop", decodeId);
 if (result.success) {
@@ -183,9 +206,11 @@ if (result.success) {
 清理所有活跃的解码会话，释放系统资源。
 
 **请求参数：**
+
 - 无
 
 **返回值：**
+
 ```typescript
 {
   success: boolean,  // 是否成功清理
@@ -194,6 +219,7 @@ if (result.success) {
 ```
 
 **使用示例：**
+
 ```typescript
 const result = await window.electron.ipcRenderer.invoke("ffmpeg-decode:cleanup");
 if (result.success) {
@@ -212,7 +238,7 @@ async function playAudioFile(filePath: string) {
   // 1. 检查是否需要 FFmpeg 解码
   const needsDecode = await window.electron.ipcRenderer.invoke(
     "ffmpeg-decode:needs-decode",
-    filePath
+    filePath,
   );
 
   if (!needsDecode) {
@@ -224,7 +250,7 @@ async function playAudioFile(filePath: string) {
   // 2. 获取音频元数据
   const metadataResult = await window.electron.ipcRenderer.invoke(
     "ffmpeg-decode:get-metadata",
-    filePath
+    filePath,
   );
 
   if (!metadataResult.success) {
@@ -237,10 +263,7 @@ async function playAudioFile(filePath: string) {
   console.log(`采样率: ${metadata.sampleRate} Hz`);
 
   // 3. 开始解码
-  const decodeResult = await window.electron.ipcRenderer.invoke(
-    "ffmpeg-decode:start",
-    filePath
-  );
+  const decodeResult = await window.electron.ipcRenderer.invoke("ffmpeg-decode:start", filePath);
 
   if (!decodeResult.success) {
     console.error("启动解码失败:", decodeResult.error);
@@ -328,7 +351,7 @@ async function playAudioFile(filePath: string) {
 
 4. **数据格式**
    - 默认使用 16-bit PCM，little-endian
-   - 立体声，采样率 48000 Hz
+   - 立体声，采样率 96000 Hz
    - 如需其他格式，需要修改服务代码
 
 ---
@@ -336,5 +359,6 @@ async function playAudioFile(filePath: string) {
 ## 技术支持
 
 如有问题或需要帮助，请查看：
+
 - 项目文档：README.md
 - 问题反馈：GitHub Issues

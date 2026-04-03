@@ -325,11 +325,7 @@ const songMoreOptions = computed<DropdownOption[]>(() => {
           label: `分享${song.type === "song" ? "歌曲" : "节目"}链接`,
           show: !isLocal,
           props: {
-            onClick: () =>
-              copyData(
-                getShareUrl(song.type, song.id),
-                "已复制分享链接到剪切板",
-              ),
+            onClick: () => copyData(getShareUrl(song.type, song.id), "已复制分享链接到剪切板"),
           },
           icon: renderIcon("Share", { size: 18 }),
         },

@@ -17,7 +17,6 @@ import initTrayIpc from "./ipc-tray";
 import initUpdateIpc from "./ipc-update";
 import initWindowsIpc from "./ipc-window";
 import initAudioTranscodeIpc from "./ipc-audio-transcode";
-import { initFFmpegDecodeIPC } from "./ipc-ffmpeg-decode";
 
 /**
  * 初始化全部 IPC 通信
@@ -40,7 +39,6 @@ const initIpc = (): void => {
   initMpvIpc();
   initRendererLogIpc();
   initAudioTranscodeIpc();
-  initFFmpegDecodeIPC();
   if (isMac) {
     initMacStatusBarIpc();
   } else {

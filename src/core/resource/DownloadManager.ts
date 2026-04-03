@@ -390,7 +390,12 @@ class DownloadManager {
       // 转换 id 为 number 类型
       const songId = parseInt(id, 10);
       if (!isNaN(songId)) {
-        dataStore.updateDownloadProgress(songId, Number((percent * 100).toFixed(1)), transferred, total);
+        dataStore.updateDownloadProgress(
+          songId,
+          Number((percent * 100).toFixed(1)),
+          transferred,
+          total,
+        );
       }
     });
   }

@@ -70,47 +70,44 @@ export class MpvPlayer extends EventTarget implements IPlaybackEngine {
     // window.electron.ipcRenderer.removeListener("mpv-ended", this.handleEnded);
 
     // 监听 MPV 属性变化
-    window.electron.ipcRenderer.on(
-      "mpv-property-change",
-      (...args: unknown[]) => {
-        const { name, value } = args[1] as { name: string; value: unknown };
-        if (value === null || value === undefined) return;
+    window.electron.ipcRenderer.on("mpv-property-change", (...args: unknown[]) => {
+      const { name, value } = args[1] as { name: string; value: unknown };
+      if (value === null || value === undefined) return;
 
-        switch (name) {
-          case "time-pos":
-            if (typeof value === "number") {
-              this._currentTime = value;
-              this.dispatchEvent(new Event(MPV_EVENTS.TIME_UPDATE));
-            }
-            break;
+      switch (name) {
+        case "time-pos":
+          if (typeof value === "number") {
+            this._currentTime = value;
+            this.dispatchEvent(new Event(MPV_EVENTS.TIME_UPDATE));
+          }
+          break;
 
-          case "pause": {
-            if (!this.playbackStarted) break;
-            const isPaused = !!value;
-            if (this.forcePaused) {
-              this._paused = true;
-              this.dispatchEvent(new Event(MPV_EVENTS.PAUSE));
-              break;
-            }
-            this._paused = isPaused;
-            this.dispatchEvent(new Event(isPaused ? MPV_EVENTS.PAUSE : MPV_EVENTS.PLAY));
+        case "pause": {
+          if (!this.playbackStarted) break;
+          const isPaused = !!value;
+          if (this.forcePaused) {
+            this._paused = true;
+            this.dispatchEvent(new Event(MPV_EVENTS.PAUSE));
             break;
           }
-
-          case "duration":
-            if (typeof value === "number") {
-              this._duration = value;
-            }
-            break;
-
-          case "volume":
-            if (typeof value === "number") {
-              this._volume = value / 100;
-            }
-            break;
+          this._paused = isPaused;
+          this.dispatchEvent(new Event(isPaused ? MPV_EVENTS.PAUSE : MPV_EVENTS.PLAY));
+          break;
         }
-      },
-    );
+
+        case "duration":
+          if (typeof value === "number") {
+            this._duration = value;
+          }
+          break;
+
+        case "volume":
+          if (typeof value === "number") {
+            this._volume = value / 100;
+          }
+          break;
+      }
+    });
 
     // 文件加载完成
     window.electron.ipcRenderer.on("mpv-file-loaded", () => {

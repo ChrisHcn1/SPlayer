@@ -297,11 +297,14 @@ onMounted(async () => {
       const windowConfig = await window.api.store.get("window");
       useBorderless.value = windowConfig?.useBorderless ?? true;
       // 获取窗口状态
-      window.electron.ipcRenderer.invoke("win-state").then((value: boolean) => {
-        isMax.value = value;
-      }).catch((error: Error) => {
-        console.warn("获取窗口状态失败:", error.message);
-      });
+      window.electron.ipcRenderer
+        .invoke("win-state")
+        .then((value: boolean) => {
+          isMax.value = value;
+        })
+        .catch((error: Error) => {
+          console.warn("获取窗口状态失败:", error.message);
+        });
       window.electron.ipcRenderer.on("win-state-change", (...args: unknown[]) => {
         const value = args[1] as boolean;
         isMax.value = value;

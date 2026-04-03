@@ -43,7 +43,6 @@ class FFplayAudioService {
 
     if (foundPath) {
       this.ffplayPath = foundPath;
-      ipcLog.info(`[FFplayAudioService] Found ffplay.exe at: ${this.ffplayPath}`);
     } else {
       // 默认使用第一个路径
       this.ffplayPath = possiblePaths[0];
@@ -68,9 +67,6 @@ class FFplayAudioService {
       try {
         const ffprobePath = path.join(path.dirname(this.ffplayPath), "ffprobe.exe");
 
-        ipcLog.info(`[FFplayAudioService] Getting metadata for: ${filePath}`);
-        ipcLog.info(`[FFplayAudioService] Using ffprobe at: ${ffprobePath}`);
-
         if (!fs.existsSync(ffprobePath)) {
           ipcLog.error(`[FFplayAudioService] ffprobe.exe not found at: ${ffprobePath}`);
           reject(new Error(`ffprobe.exe not found at: ${ffprobePath}`));
@@ -91,10 +87,6 @@ class FFplayAudioService {
           filePath,
         ];
 
-        ipcLog.info(
-          `[FFplayAudioService] Running ffprobe command: ${ffprobePath} ${args.join(" ")}`,
-        );
-
         const ffprobeProcess = spawn(ffprobePath, args, {
           env: {
             ...process.env,
@@ -111,18 +103,10 @@ class FFplayAudioService {
         });
 
         ffprobeProcess.stderr.on("data", (data) => {
-          const errorMsg = data.toString();
-          stderr += errorMsg;
-          ipcLog.warn(`[FFplayAudioService] ffprobe stderr: ${errorMsg}`);
+          stderr += data.toString();
         });
 
         ffprobeProcess.on("close", (code) => {
-          ipcLog.info(`[FFplayAudioService] ffprobe exited with code: ${code}`);
-          ipcLog.info(`[FFplayAudioService] ffprobe output: ${output}`);
-          if (stderr) {
-            ipcLog.warn(`[FFplayAudioService] ffprobe full stderr: ${stderr}`);
-          }
-
           if (code === 0) {
             try {
               const result = JSON.parse(output);
@@ -159,13 +143,9 @@ class FFplayAudioService {
                 metadata.album = tags.album || tags.ALBUM || tags.Album;
               }
 
-              ipcLog.info(
-                `[FFplayAudioService] Metadata extracted successfully: ${JSON.stringify(metadata)}`,
-              );
               resolve(metadata);
             } catch (error) {
               ipcLog.error(`[FFplayAudioService] JSON parse error: ${error}`);
-              ipcLog.error(`[FFplayAudioService] Output that caused error: ${output}`);
               reject(error);
             }
           } else {

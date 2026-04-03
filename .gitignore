@@ -36,4 +36,23 @@ target
 docs/.vitepress/cache
 docs/.vitepress/dist
 
+# FFmpeg
+ffmpeg/
+
+# Resources
+resources/
+
+# IDE
+.vs/
+
+# Package manager
+.pnpm-store/
+
+# Temporary files
+nul
+
+# Temporary documentation
+ffmpeg-integration-evaluation.md
+src/ffmpeg-dsd-ape-dts-decode.md
+
 .trae/*

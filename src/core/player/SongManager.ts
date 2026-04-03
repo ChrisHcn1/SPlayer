@@ -342,7 +342,7 @@ class SongManager {
 
           if (currentSong && currentSong.duration) {
             const currentTime = statusStore.currentTime;
-            remainingTimeMs = Math.max(0, (currentSong.duration * 1000) - (currentTime * 1000));
+            remainingTimeMs = Math.max(0, currentSong.duration * 1000 - currentTime * 1000);
           }
 
           // 提前10秒开始转码

@@ -718,49 +718,46 @@ const tempToggleLyricLock = (isLock: boolean) => {
 
 onMounted(() => {
   // 接收歌词数据
-  window.electron.ipcRenderer.on(
-    "desktop-lyric:update-data",
-    (...args: unknown[]) => {
-      const data = args[1] as LyricData & { sendTimestamp?: number };
-      Object.assign(lyricData, data);
-      // 首次接收到歌词数据时，立即结束初始化状态
-      if (isInitializing.value) {
-        isInitializing.value = false;
-      }
-      // 更新锚点：以传入的 currentTime + songOffset 建立毫秒级基准，并重置帧时间
-      if (typeof lyricData.currentTime === "number") {
-        const offset = Number(lyricData.songOffset ?? 0);
-        let newBaseMs = Math.floor(lyricData.currentTime + offset);
-        // 补偿传输延迟
-        if (typeof data.sendTimestamp === "number") {
-          const ipcDelay = performance.now() - data.sendTimestamp;
-          // 正延迟才补偿
-          if (ipcDelay > 0 && ipcDelay < 1000) {
-            newBaseMs += ipcDelay;
-          }
-        }
-        // 阈值检测：只有当新时间与当前插值时间差距超过阈值时才重置锚点
-        // 这样可以避免在正常播放时频繁重置导致的微小抖动
-        const SYNC_THRESHOLD = 300; // 300ms 阈值
-        const drift = Math.abs(newBaseMs - playSeekMs.value);
-        if (drift > SYNC_THRESHOLD) {
-          baseMs = newBaseMs;
-          anchorTick = performance.now();
+  window.electron.ipcRenderer.on("desktop-lyric:update-data", (...args: unknown[]) => {
+    const data = args[1] as LyricData & { sendTimestamp?: number };
+    Object.assign(lyricData, data);
+    // 首次接收到歌词数据时，立即结束初始化状态
+    if (isInitializing.value) {
+      isInitializing.value = false;
+    }
+    // 更新锚点：以传入的 currentTime + songOffset 建立毫秒级基准，并重置帧时间
+    if (typeof lyricData.currentTime === "number") {
+      const offset = Number(lyricData.songOffset ?? 0);
+      let newBaseMs = Math.floor(lyricData.currentTime + offset);
+      // 补偿传输延迟
+      if (typeof data.sendTimestamp === "number") {
+        const ipcDelay = performance.now() - data.sendTimestamp;
+        // 正延迟才补偿
+        if (ipcDelay > 0 && ipcDelay < 1000) {
+          newBaseMs += ipcDelay;
         }
       }
-      // 按播放状态节能：暂停时暂停 RAF，播放时恢复 RAF
-      if (typeof lyricData.playStatus === "boolean") {
-        if (lyricData.playStatus) {
-          resumeSeek();
-        } else {
-          // 重置锚点到当前毫秒游标，避免因暂停后时间推进造成误差
-          baseMs = playSeekMs.value;
-          anchorTick = performance.now();
-          pauseSeek();
-        }
+      // 阈值检测：只有当新时间与当前插值时间差距超过阈值时才重置锚点
+      // 这样可以避免在正常播放时频繁重置导致的微小抖动
+      const SYNC_THRESHOLD = 300; // 300ms 阈值
+      const drift = Math.abs(newBaseMs - playSeekMs.value);
+      if (drift > SYNC_THRESHOLD) {
+        baseMs = newBaseMs;
+        anchorTick = performance.now();
       }
-    },
-  );
+    }
+    // 按播放状态节能：暂停时暂停 RAF，播放时恢复 RAF
+    if (typeof lyricData.playStatus === "boolean") {
+      if (lyricData.playStatus) {
+        resumeSeek();
+      } else {
+        // 重置锚点到当前毫秒游标，避免因暂停后时间推进造成误差
+        baseMs = playSeekMs.value;
+        anchorTick = performance.now();
+        pauseSeek();
+      }
+    }
+  });
   window.electron.ipcRenderer.on("desktop-lyric:update-option", (...args: unknown[]) => {
     const config = args[1] as LyricConfig;
     Object.assign(lyricConfig, config);

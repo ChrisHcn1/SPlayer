@@ -210,7 +210,7 @@ export const useGeneralSettings = (): SettingConfig => {
       } else {
         window.$message.warning("未检测到 FFmpeg，请确保已安装并添加到系统 PATH");
       }
-    } catch (error) {
+    } catch {
       window.$message.error("检查 FFmpeg 状态失败");
     }
   };
@@ -231,7 +231,7 @@ export const useGeneralSettings = (): SettingConfig => {
           } else {
             window.$message.error("清理失败");
           }
-        } catch (error) {
+        } catch {
           window.$message.error("清理失败");
         }
       },

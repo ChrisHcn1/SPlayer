@@ -53,8 +53,8 @@ const config: Configuration = {
       filter: ["*.dll"],
     },
     {
-      // FFmpeg 可执行文件
-      from: "ffmpeg",
+      // FFmpeg 可执行文件和依赖DLL
+      from: "ffmpeg/bin",
       to: "ffmpeg",
       filter: ["*.exe", "*.dll"],
     },

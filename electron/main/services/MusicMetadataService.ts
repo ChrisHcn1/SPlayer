@@ -260,61 +260,61 @@ export class MusicMetadataService {
   }
 
   /**
- * 获取音乐文件的所有元数据
- * @param path 文件路径
- */
-async getMetadata(path: string): Promise<{
-  fileName: string;
-  fileSize: number;
-  common: any;
-  lyric: string;
-  format: any;
-  md5: string;
-  replayGain: {
-    trackGain: number | undefined;
-    trackPeak: number | undefined;
-    albumGain: number | undefined;
-    albumPeak: number | undefined;
-  };
-}> {
+   * 获取音乐文件的所有元数据
+   * @param path 文件路径
+   */
+  async getMetadata(path: string): Promise<{
+    fileName: string;
+    fileSize: number;
+    common: any;
+    lyric: string;
+    format: any;
+    md5: string;
+    replayGain: {
+      trackGain: number | undefined;
+      trackPeak: number | undefined;
+      albumGain: number | undefined;
+      albumPeak: number | undefined;
+    };
+  }> {
     try {
       const filePath = resolve(path).replace(/\\/g, "/");
       const { common, format } = await parseFile(filePath);
-      
+
       // 检查并修复乱码问题
       const fileName = basename(filePath);
       const baseName = fileName.replace(/\.[^.]+$/, "");
       const ext = extname(filePath).toLowerCase();
       const dirPath = dirname(filePath);
-      
+
       // 检查标题是否为乱码
       let title = common.title;
       if (title && this.isGarbledText(title)) {
         ipcLog.warn(`⚠️ Detected garbled title: ${title}, using file name instead`);
         title = baseName;
       }
-      
+
       // 检查专辑是否为乱码
       let album = common.album;
       if (album && this.isGarbledText(album)) {
         ipcLog.warn(`⚠️ Detected garbled album: ${album}, using file name instead`);
         album = baseName;
       }
-      
+
       // 检查艺术家是否为乱码
       let artists = common.artists;
       if (artists && artists.length > 0 && this.isGarbledText(artists[0])) {
         ipcLog.warn(`⚠️ Detected garbled artist: ${artists[0]}, using '未知艺术家' instead`);
         artists = ["未知艺术家"];
       }
-      
+
       // 检查专辑艺术家是否为乱码
       let albumArtist = common.albumartist;
       if (albumArtist && this.isGarbledText(albumArtist)) {
         ipcLog.warn(`⚠️ Detected garbled album artist: ${albumArtist}, using '未知艺术家' instead`);
         albumArtist = "未知艺术家";
       }
-      
+
       // 创建修复后的 common 对象
       const fixedCommon = {
         ...common,
@@ -323,20 +323,20 @@ async getMetadata(path: string): Promise<{
         artists,
         albumArtist,
       };
-      
+
       // 尝试从 WAV 文件的 LYR 标签中读取歌词
       let wavLyric = "";
-      if (ext === ".wav" && common?.['LYR']) {
-        wavLyric = common['LYR'];
+      if (ext === ".wav" && common?.["LYR"]) {
+        wavLyric = common["LYR"];
       }
-      
+
       // 从音频文件元数据中获取歌词
-      let lyric = 
+      let lyric =
         metaDataLyricsArrayToLrc(fixedCommon?.lyrics?.[0]?.syncText || []) ||
         fixedCommon?.lyrics?.[0]?.text ||
         wavLyric ||
         "";
-      
+
       // 如果歌词为空，尝试读取本地歌词文件
       if (!lyric) {
         const localLyric = await this.readLocalLyricFile(dirPath, baseName);
@@ -345,7 +345,7 @@ async getMetadata(path: string): Promise<{
           ipcLog.info(`📝 Read lyric from local file: ${baseName}.lrc`);
         }
       }
-      
+
       return {
         // 文件名称
         fileName,
@@ -375,9 +375,9 @@ async getMetadata(path: string): Promise<{
         const fileSize = (await stat(filePath)).size / (1024 * 1024);
         const md5 = await getFileMD5(filePath);
         const dirPath = dirname(filePath);
-        
+
         ipcLog.warn(`⚠️ Unsupported audio format for metadata: ${path}, returning basic info`);
-        
+
         // 尝试读取本地歌词文件
         let lyric = "";
         const localLyric = await this.readLocalLyricFile(dirPath, baseName);
@@ -385,7 +385,7 @@ async getMetadata(path: string): Promise<{
           lyric = localLyric;
           ipcLog.info(`📝 Read lyric from local file: ${baseName}.lrc`);
         }
-        
+
         return {
           fileName,
           fileSize,
@@ -406,12 +406,12 @@ async getMetadata(path: string): Promise<{
           },
         };
       }
-      
+
       ipcLog.error("❌ Error fetching music metadata:", error);
       throw error;
     }
   }
-  
+
   /**
    * 检测文本是否为乱码
    * @param text 要检测的文本
@@ -419,34 +419,42 @@ async getMetadata(path: string): Promise<{
    */
   private isGarbledText(text: string): boolean {
     if (!text) return false;
-    
+
     // 检查是否包含明显的乱码特征
     // 1. 检查是否包含大量的非中文字符和非英文字符
     const chineseCharCount = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
     const englishCharCount = (text.match(/[a-zA-Z]/g) || []).length;
     const totalCharCount = text.length;
-    
+
     // 如果中文字符和英文字符的总数少于总字符数的一半，可能是乱码
     if (chineseCharCount + englishCharCount < totalCharCount / 2) {
       return true;
     }
-    
+
     // 2. 检查是否包含明显的乱码模式
-    const garbledPatterns = [
-      /[\x00-\x1f\x7f]/g, // 控制字符
-      /[\x80-\xff]{2,}/g, // 连续的扩展 ASCII 字符
-      /d[0-9a-f]g[0-9a-f]g[0-9a-f]/i, // 类似 "d8g0g0d80d00" 的模式
-    ];
-    
-    for (const pattern of garbledPatterns) {
-      if (pattern.test(text)) {
+    // 检查控制字符
+    for (let i = 0; i < text.length; i++) {
+      const charCode = text.charCodeAt(i);
+      if ((charCode >= 0 && charCode <= 31) || charCode === 127) {
         return true;
       }
     }
-    
+
+    // 检查连续的扩展 ASCII 字符
+    const extendedAsciiPattern = /[\u0080-\u00FF]{2,}/g;
+    if (extendedAsciiPattern.test(text)) {
+      return true;
+    }
+
+    // 检查类似 "d8g0g0d80d00" 的模式
+    const garbledPattern = /d[0-9a-f]g[0-9a-f]g[0-9a-f]/i;
+    if (garbledPattern.test(text)) {
+      return true;
+    }
+
     return false;
   }
-  
+
   /**
    * 读取本地歌词文件
    * @param dirPath 目录路径
@@ -457,11 +465,11 @@ async getMetadata(path: string): Promise<{
     try {
       // 支持的歌词文件扩展名
       const lyricExtensions = [".lrc", ".txt"];
-      
+
       // 尝试读取每个扩展名的歌词文件
       for (const ext of lyricExtensions) {
         const lyricPath = join(dirPath, `${baseName}${ext}`);
-        
+
         try {
           // 检查文件是否存在
           await access(lyricPath);
@@ -475,7 +483,7 @@ async getMetadata(path: string): Promise<{
           continue;
         }
       }
-      
+
       // 没有找到有效的歌词文件
       return "";
     } catch (error) {
@@ -496,7 +504,7 @@ async getMetadata(path: string): Promise<{
         ipcLog.info(`✅ 使用 FFmpeg 成功修改元数据: ${path}`);
         return true;
       }
-      
+
       // 如果失败，抛出错误
       throw new Error("修改元数据失败");
     } catch (error) {
@@ -510,7 +518,10 @@ async getMetadata(path: string): Promise<{
    * @param path 文件路径
    * @param metadata 元数据对象
    */
-  private async setMetadataWithFFmpeg(path: string, metadata: MusicMetadataInput): Promise<boolean> {
+  private async setMetadataWithFFmpeg(
+    path: string,
+    metadata: MusicMetadataInput,
+  ): Promise<boolean> {
     try {
       const {
         name,
@@ -532,10 +543,7 @@ async getMetadata(path: string): Promise<{
 
       // 使用 FFmpeg 写入元数据
       const { spawn } = await import("node:child_process");
-      const ffmpegArgs = [
-        "-i",
-        songPath,
-      ];
+      const ffmpegArgs = ["-i", songPath];
 
       // 添加封面（如果有）
       if (coverPath) {
@@ -591,7 +599,9 @@ async getMetadata(path: string): Promise<{
       // 查找 FFmpeg
       const ffmpegPath = await this.findFFmpeg();
       if (!ffmpegPath) {
-        throw new Error("FFmpeg not found. Please install FFmpeg or configure the path in settings.");
+        throw new Error(
+          "FFmpeg not found. Please install FFmpeg or configure the path in settings.",
+        );
       }
 
       ipcLog.info(`[FFmpeg] 执行命令: ${ffmpegPath} ${ffmpegArgs.join(" ")}`);
@@ -616,7 +626,7 @@ async getMetadata(path: string): Promise<{
           ipcLog.info(`[FFmpeg] 退出码: ${code}`);
           if (stdout) ipcLog.info(`[FFmpeg] 输出: ${stdout}`);
           if (stderr) ipcLog.info(`[FFmpeg] 错误输出: ${stderr}`);
-          
+
           if (code === 0) {
             resolve();
           } else {
@@ -632,7 +642,7 @@ async getMetadata(path: string): Promise<{
 
       // 替换原文件（使用更安全的方法）
       const { rename, unlink, stat } = await import("node:fs/promises");
-      
+
       // 确保临时文件存在
       try {
         const tempStat = await stat(tempPath);
@@ -641,7 +651,7 @@ async getMetadata(path: string): Promise<{
         ipcLog.error(`[FFmpeg] 临时文件不存在: ${tempPath}`, error);
         throw new Error(`Temporary file not created: ${tempPath}`);
       }
-      
+
       // 备份原文件
       const backupPath = songPath + ".bak";
       try {
@@ -651,7 +661,7 @@ async getMetadata(path: string): Promise<{
         ipcLog.error(`[FFmpeg] 备份原文件失败:`, error);
         throw new Error(`Failed to backup original file: ${error}`);
       }
-      
+
       // 重命名临时文件为原文件
       try {
         await rename(tempPath, songPath);
@@ -666,7 +676,7 @@ async getMetadata(path: string): Promise<{
         }
         throw new Error(`Failed to rename temporary file: ${error}`);
       }
-      
+
       // 删除备份文件
       try {
         await unlink(backupPath);
@@ -702,9 +712,10 @@ async getMetadata(path: string): Promise<{
     }
 
     // 检查系统 PATH 中的 ffmpeg
-    const systemPaths = process.platform === "win32"
-      ? ["ffmpeg.exe", "ffmpeg"]
-      : ["ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"];
+    const systemPaths =
+      process.platform === "win32"
+        ? ["ffmpeg.exe", "ffmpeg"]
+        : ["ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"];
 
     for (const cmd of systemPaths) {
       try {
@@ -718,13 +729,24 @@ async getMetadata(path: string): Promise<{
     }
 
     // 检查常见的安装位置
-    const commonPaths = process.platform === "win32"
-      ? [
-          join(process.env.PROGRAMFILES || "C:\\Program Files", "ffmpeg", "bin", "ffmpeg.exe"),
-          join(process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)", "ffmpeg", "bin", "ffmpeg.exe"),
-          join(process.env.LOCALAPPDATA || process.env.USERPROFILE || "", "ffmpeg", "bin", "ffmpeg.exe"),
-        ]
-      : ["/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg"];
+    const commonPaths =
+      process.platform === "win32"
+        ? [
+            join(process.env.PROGRAMFILES || "C:\\Program Files", "ffmpeg", "bin", "ffmpeg.exe"),
+            join(
+              process.env["PROGRAMFILES(X86)"] || "C:\\Program Files (x86)",
+              "ffmpeg",
+              "bin",
+              "ffmpeg.exe",
+            ),
+            join(
+              process.env.LOCALAPPDATA || process.env.USERPROFILE || "",
+              "ffmpeg",
+              "bin",
+              "ffmpeg.exe",
+            ),
+          ]
+        : ["/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg", "/opt/homebrew/bin/ffmpeg"];
 
     for (const path of commonPaths) {
       try {

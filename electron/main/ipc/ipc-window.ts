@@ -21,10 +21,10 @@ const initWindowsIpc = (): void => {
   const store = useStore();
 
   // 当前窗口状态
-  ipcMain.on("win-state", (event) => {
+  ipcMain.handle("win-state", () => {
     const mainWin = mainWindow.getWin();
-    if (!mainWin) return;
-    event.returnValue = mainWin?.isMaximized();
+    if (!mainWin) return false;
+    return mainWin?.isMaximized();
   });
 
   // 加载完成

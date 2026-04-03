@@ -84,14 +84,11 @@ const initIpc = () => {
     });
 
     // 监听主进程发来的 macOS 状态栏歌词启用状态更新
-    window.electron.ipcRenderer.on(
-      "setting:update-macos-lyric-enabled",
-      (...args: unknown[]) => {
-        const enabled = args[1] as boolean;
-        const settingStore = useSettingStore();
-        settingStore.macos.statusBarLyric.enabled = enabled;
-      },
-    );
+    window.electron.ipcRenderer.on("setting:update-macos-lyric-enabled", (...args: unknown[]) => {
+      const enabled = args[1] as boolean;
+      const settingStore = useSettingStore();
+      settingStore.macos.statusBarLyric.enabled = enabled;
+    });
 
     // 给任务栏歌词初始数据
     window.electron.ipcRenderer.on(TASKBAR_IPC_CHANNELS.REQUEST_DATA, () => {

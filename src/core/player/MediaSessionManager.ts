@@ -102,7 +102,7 @@ class MediaSessionManager {
     if (isElectron) {
       // 注意：使用 removeListener 而不是 removeAllListeners
       // window.electron.ipcRenderer.removeListener("media-event", this.handleMediaEvent);
-      
+
       window.electron.ipcRenderer.on("media-event", (...args: unknown[]) => {
         const event = args[1] as SystemMediaEvent;
         this.handleMediaEvent(event, player);

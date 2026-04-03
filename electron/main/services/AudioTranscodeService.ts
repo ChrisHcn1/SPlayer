@@ -134,7 +134,7 @@ class AudioTranscodeService {
       join(__dirname, "..", "..", "ffmpeg", "ffmpeg.exe"),
       // 打包环境路径
       join(process.resourcesPath, "ffmpeg", "bin", "ffmpeg.exe"),
-      join(process.resourcesPath, "ffmpeg", "ffmpeg.exe")
+      join(process.resourcesPath, "ffmpeg", "ffmpeg.exe"),
     ];
 
     ipcLog.info(`[AudioTranscode] Checking ${builtinPaths.length} built-in FFmpeg paths`);

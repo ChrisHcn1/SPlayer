@@ -1,6 +1,7 @@
 packages:
   - "."
   - "native/external-media-integration"
+  - "native/ffmpeg-decoder"
   - "native/ferrous-opencc-wasm"
   - "native/taskbar-lyric"
   - "native/tools"

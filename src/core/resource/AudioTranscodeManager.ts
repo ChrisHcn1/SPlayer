@@ -44,13 +44,9 @@ class AudioTranscodeManager {
     this.ffmpegChecked = true;
 
     try {
-      const result = await window.electron.ipcRenderer.invoke(
-        "audio-transcode-check-ffmpeg",
-      );
+      const result = await window.electron.ipcRenderer.invoke("audio-transcode-check-ffmpeg");
       this.ffmpegAvailable = result.available || false;
-      console.log(
-        `[AudioTranscode] FFmpeg available: ${this.ffmpegAvailable}`,
-      );
+      console.log(`[AudioTranscode] FFmpeg available: ${this.ffmpegAvailable}`);
       return this.ffmpegAvailable;
     } catch (error) {
       console.error("[AudioTranscode] FFmpeg check failed:", error);
@@ -59,20 +55,17 @@ class AudioTranscodeManager {
   }
 
   private setupProgressListener(): void {
-    if (!isElectron) return;
+    if (!isElectron || !window.electron?.ipcRenderer) return;
 
-    window.electron.ipcRenderer.on(
-      "audio-transcode-progress",
-      (...args: unknown[]) => {
-        const data = args[1] as { sourcePath: string; targetFormat: string; progress: number };
-        for (const [key, job] of this.jobs) {
-          if (job.sourcePath === data.sourcePath && job.status === "transcoding") {
-            job.progress = data.progress;
-            console.log(`[AudioTranscode] Progress for ${key}: ${data.progress}%`);
-          }
+    window.electron.ipcRenderer.on("audio-transcode-progress", (...args: unknown[]) => {
+      const data = args[1] as { sourcePath: string; targetFormat: string; progress: number };
+      for (const [key, job] of this.jobs) {
+        if (job.sourcePath === data.sourcePath && job.status === "transcoding") {
+          job.progress = data.progress;
+          console.log(`[AudioTranscode] Progress for ${key}: ${data.progress}%`);
         }
-      },
-    );
+      }
+    });
   }
 
   /**
@@ -87,10 +80,7 @@ class AudioTranscodeManager {
     return settingStore.enableAudioTranscode && this.ffmpegAvailable;
   }
 
-  public async prefetchNextSong(
-    song: SongType,
-    playDurationMs: number,
-  ): Promise<void> {
+  public async prefetchNextSong(song: SongType, playDurationMs: number): Promise<void> {
     if (!isElectron || !this.prefetchEnabled) return;
     if (!song.path || !this.needsTranscode(song.path)) return;
 
@@ -118,9 +108,7 @@ class AudioTranscodeManager {
     }
 
     const prefetchDelay = Math.max(0, playDurationMs - this.prefetchTimeMs);
-    console.log(
-      `[AudioTranscode] Scheduling transcode for song ${song.id} in ${prefetchDelay}ms`,
-    );
+    console.log(`[AudioTranscode] Scheduling transcode for song ${song.id} in ${prefetchDelay}ms`);
 
     setTimeout(async () => {
       await this.transcodeSong(song);
@@ -171,11 +159,7 @@ class AudioTranscodeManager {
     try {
       console.log(`[AudioTranscode] Starting transcode for song ${song.id}: ${song.path}`);
 
-      const result = await window.electron.ipcRenderer.invoke(
-        "audio-transcode",
-        song.path,
-        "flac",
-      );
+      const result = await window.electron.ipcRenderer.invoke("audio-transcode", song.path, "flac");
 
       console.log(`[AudioTranscode] Transcode result:`, result);
 
@@ -183,7 +167,9 @@ class AudioTranscodeManager {
         job.targetPath = result.targetPath;
         job.status = "completed";
         job.progress = 100;
-        console.log(`[AudioTranscode] Transcoding completed for song ${song.id}: ${result.targetPath}`);
+        console.log(
+          `[AudioTranscode] Transcoding completed for song ${song.id}: ${result.targetPath}`,
+        );
         return result.targetPath;
       } else {
         job.status = "failed";

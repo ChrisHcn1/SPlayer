@@ -487,20 +487,29 @@ class PlayerController {
       songPath: song.path,
     });
 
-    if (isElectron && audioSource.url.startsWith("file://") && song.path && settingStore.enableAudioTranscode) {
+    if (
+      isElectron &&
+      audioSource.url.startsWith("file://") &&
+      song.path &&
+      settingStore.enableAudioTranscode
+    ) {
       // 先检查 FFmpeg 是否可用（会初始化缓存）
       const ffmpegAvailable = await audioTranscodeManager.checkFFmpegAvailable();
       console.log(`🔧 [prepareAudioSource] FFmpeg 可用: ${ffmpegAvailable}`);
 
       if (ffmpegAvailable) {
         const needsTranscode = await this.checkNeedsTranscode(song.path);
-        console.log(`🔍 [prepareAudioSource] 需要转码: ${needsTranscode}, 文件扩展名: ${song.path.split(".").pop()?.toLowerCase()}`);
+        console.log(
+          `🔍 [prepareAudioSource] 需要转码: ${needsTranscode}, 文件扩展名: ${song.path.split(".").pop()?.toLowerCase()}`,
+        );
 
         if (needsTranscode) {
           // 检查是否应该使用实时解码（FFmpeg 可用且设置中启用了转码）
           const shouldUseRealtimeDecode = audioTranscodeManager.isFFmpegAvailable();
           if (shouldUseRealtimeDecode) {
-            console.log(`🎵 [prepareAudioSource] FFmpeg 可用，使用 FFmpeg 实时解码播放: ${song.path}`);
+            console.log(
+              `🎵 [prepareAudioSource] FFmpeg 可用，使用 FFmpeg 实时解码播放: ${song.path}`,
+            );
             // 保持原文件路径，让 FFmpegBinaryPlayer 处理解码
             // audioSource.url 保持不变
           } else {
@@ -1929,21 +1938,25 @@ class PlayerController {
     // 本地文件错误 - 尝试转码重试
     if (musicStore.playSong.path && musicStore.playSong.type !== "streaming") {
       console.error("❌ 本地文件加载失败");
-      
+
       const settingStore = useSettingStore();
       if (settingStore.enableAudioTranscode && isElectron) {
         const needsTranscode = await this.checkNeedsTranscode(musicStore.playSong.path);
-        console.log(`🔍 [handlePlaybackError] 检查是否需要转码: ${needsTranscode}, 文件路径: ${musicStore.playSong.path}`);
-        
+        console.log(
+          `🔍 [handlePlaybackError] 检查是否需要转码: ${needsTranscode}, 文件路径: ${musicStore.playSong.path}`,
+        );
+
         if (needsTranscode) {
           const ffmpegAvailable = await audioTranscodeManager.checkFFmpegAvailable();
           console.log(`🔧 [handlePlaybackError] FFmpeg 可用: ${ffmpegAvailable}`);
-          
+
           if (ffmpegAvailable) {
             // 检查是否应该使用实时解码
             const shouldUseRealtimeDecode = audioTranscodeManager.isFFmpegAvailable();
             if (shouldUseRealtimeDecode) {
-              console.log(`🎵 [handlePlaybackError] FFmpeg 可用，使用 FFmpeg 实时解码播放: ${musicStore.playSong.path}`);
+              console.log(
+                `🎵 [handlePlaybackError] FFmpeg 可用，使用 FFmpeg 实时解码播放: ${musicStore.playSong.path}`,
+              );
               // 直接使用 FFmpeg 解码播放
               this.retryInfo.count++;
               await sleep(500);
@@ -1951,9 +1964,13 @@ class PlayerController {
               return;
             } else {
               // FFmpeg 不可用，尝试转码
-              console.log(`🔄 [handlePlaybackError] 开始转码并重试播放: ${musicStore.playSong.path}`);
-              const transcodeResult = await audioTranscodeManager.transcodeSong(musicStore.playSong);
-              
+              console.log(
+                `🔄 [handlePlaybackError] 开始转码并重试播放: ${musicStore.playSong.path}`,
+              );
+              const transcodeResult = await audioTranscodeManager.transcodeSong(
+                musicStore.playSong,
+              );
+
               if (transcodeResult && transcodeResult !== musicStore.playSong.path) {
                 console.log(`✅ [handlePlaybackError] 转码成功，重试播放: ${transcodeResult}`);
                 this.retryInfo.count++;
@@ -1961,7 +1978,9 @@ class PlayerController {
                 await this.playSong({ autoPlay: true, seek: currentSeek });
                 return;
               } else if (transcodeResult === musicStore.playSong.path) {
-                console.log(`🎵 [handlePlaybackError] 使用 FFmpeg 实时解码: ${musicStore.playSong.path}`);
+                console.log(
+                  `🎵 [handlePlaybackError] 使用 FFmpeg 实时解码: ${musicStore.playSong.path}`,
+                );
                 this.retryInfo.count++;
                 await sleep(500);
                 await this.playSong({ autoPlay: true, seek: currentSeek });
@@ -1977,7 +1996,7 @@ class PlayerController {
           console.log(`ℹ️ [handlePlaybackError] 文件不需要转码，直接跳过`);
         }
       }
-      
+
       window.$message.error("本地文件无法播放");
       statusStore.playLoading = false;
       this.retryInfo.count = 0;

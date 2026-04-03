@@ -469,14 +469,19 @@ const getAllLocalMusic = debounce(
       isCompleted = true;
       const errorMessage = (error as Error).message || "获取本地音乐失败，请重试";
       console.error("获取本地音乐失败:", error);
-      
+
       // 检查是否是原生模块未加载的错误
-      if (errorMessage.includes("Native tools not loaded") || errorMessage.includes("原生工具未加载")) {
-        window.$message.warning("原生模块未加载，本地音乐功能不可用。请重新构建应用或设置环境变量 SKIP_NATIVE_BUILD=false");
+      if (
+        errorMessage.includes("Native tools not loaded") ||
+        errorMessage.includes("原生工具未加载")
+      ) {
+        window.$message.warning(
+          "原生模块未加载，本地音乐功能不可用。请重新构建应用或设置环境变量 SKIP_NATIVE_BUILD=false",
+        );
       } else {
         window.$message.error(errorMessage);
       }
-      
+
       loading.value = false;
       loadingMsg.value?.destroy();
       loadingMsg.value = null;

@@ -92,6 +92,7 @@ vcpkg list ffmpeg
 ```
 
 FFmpeg 的库文件通常安装在：
+
 ```
 C:\Users\<用户名>\vcpkg\installed\x64-windows\
 ```
@@ -170,12 +171,12 @@ Copy-Item "$env:USERPROFILE\vcpkg\installed\x64-windows\tools\ffmpeg\ffmpeg.exe"
 创建 `scripts/copy-ffmpeg.js`：
 
 ```javascript
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
 
-const vcpkgPath = path.join(os.homedir(), 'vcpkg', 'installed', 'x64-windows', 'tools', 'ffmpeg');
-const resourcesPath = path.join(__dirname, '..', 'resources');
+const vcpkgPath = path.join(os.homedir(), "vcpkg", "installed", "x64-windows", "tools", "ffmpeg");
+const resourcesPath = path.join(__dirname, "..", "resources");
 
 // 确保资源目录存在
 if (!fs.existsSync(resourcesPath)) {
@@ -183,14 +184,14 @@ if (!fs.existsSync(resourcesPath)) {
 }
 
 // 复制 FFmpeg 可执行文件
-const ffmpegSource = path.join(vcpkgPath, 'ffmpeg.exe');
-const ffmpegDest = path.join(resourcesPath, 'ffmpeg.exe');
+const ffmpegSource = path.join(vcpkgPath, "ffmpeg.exe");
+const ffmpegDest = path.join(resourcesPath, "ffmpeg.exe");
 
 if (fs.existsSync(ffmpegSource)) {
   fs.copyFileSync(ffmpegSource, ffmpegDest);
-  console.log('✅ FFmpeg copied successfully');
+  console.log("✅ FFmpeg copied successfully");
 } else {
-  console.error('❌ FFmpeg not found in vcpkg installation');
+  console.error("❌ FFmpeg not found in vcpkg installation");
   console.error(`Expected path: ${ffmpegSource}`);
 }
 ```
@@ -307,6 +308,7 @@ pnpm dev
 ### Q1: vcpkg 安装失败
 
 **解决方案：**
+
 - 确保已安装 Visual Studio 2019 或更高版本
 - 确保已安装 Git
 - 尝试使用管理员权限运行 PowerShell
@@ -314,12 +316,14 @@ pnpm dev
 ### Q2: FFmpeg 编译时间过长
 
 **解决方案：**
+
 - 使用预编译的二进制包：`vcpkg install ffmpeg:x64-windows --binarysource=default`
 - 或者使用 `vcpkg install ffmpeg:x64-windows --recurse` 加速依赖安装
 
 ### Q3: 找不到 FFmpeg 可执行文件
 
 **解决方案：**
+
 - 检查 vcpkg 安装路径是否正确
 - 确认 FFmpeg 已成功安装：`vcpkg list ffmpeg`
 - 手动复制 FFmpeg 可执行文件到项目资源目录
@@ -327,6 +331,7 @@ pnpm dev
 ### Q4: Electron 构建失败
 
 **解决方案：**
+
 - 确保 FFmpeg 可执行文件已复制到正确的位置
 - 检查 `electron-builder.yml` 中的文件包含配置
 - 使用 `pnpm build` 重新构建
